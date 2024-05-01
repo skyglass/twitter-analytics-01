@@ -1,0 +1,93 @@
+name: Commit Stage
+on: push
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: greeta-twitter-01
+  VERSION: ${{ github.sha }}
+
+jobs:
+  package:
+    name: Package and Publish
+    if: ${{ github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - name: Build
+        run: |
+          mvn clean install -DskipTests
+      - name: Build container images
+        run: |
+          cd elastic-query-service
+          mvn spring-boot:build-image -DskipTests \
+            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/elastic-query-service:${{ env.VERSION }}
+          cd ../
+          cd analytics-service
+          mvn spring-boot:build-image -DskipTests \
+            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/analytics-service:${{ env.VERSION }}
+          cd ../
+          cd kafka-streams-service
+          mvn spring-boot:build-image -DskipTests \
+            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-streams-service:${{ env.VERSION }} 
+          cd ../
+          cd twitter-to-kafka-service
+          mvn spring-boot:build-image -DskipTests \
+            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/twitter-to-kafka-service:${{ env.VERSION }}
+          cd ../
+          cd kafka-to-elastic-service
+          mvn spring-boot:build-image -DskipTests \
+            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-to-elastic-service:${{ env.VERSION }}
+          cd ../
+          cd gateway-service
+          mvn spring-boot:build-image -DskipTests \
+            -Dspring-boot.build-image.imageName=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/gateway-service:${{ env.VERSION }}
+      - name: Log into container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish container image
+        run:  |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/elastic-query-service:${{ env.VERSION }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/analytics-service:${{ env.VERSION }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-streams-service:${{ env.VERSION }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/twitter-to-kafka-service:${{ env.VERSION }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-to-elastic-service:${{ env.VERSION }}       
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/gateway-service:${{ env.VERSION }}
+      - name: Publish container image (latest)
+        run: |
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/elastic-query-service:${{ env.VERSION }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/elastic-query-service:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/elastic-query-service:latest
+          
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/analytics-service:${{ env.VERSION }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/analytics-service:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/analytics-service:latest
+          
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-streams-service:${{ env.VERSION }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-streams-service:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-streams-service:latest
+          
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/twitter-to-kafka-service:${{ env.VERSION }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/twitter-to-kafka-service:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/twitter-to-kafka-service:latest
+          
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-to-elastic-service:${{ env.VERSION }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-to-elastic-service:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/kafka-to-elastic-service:latest
+          
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/gateway-service:${{ env.VERSION }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/gateway-service:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/gateway-service:latest
